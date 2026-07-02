@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuth() { return request.auth != null; }
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isOperaio()   { return isAuth() && getRole() in ['operaio','magazzino','admin']; }
+    function isMagazzino() { return isAuth() && getRole() in ['magazzino','admin']; }
+    function isAdmin()     { return isAuth() && getRole() == 'admin'; }
+
+    match /users/{uid} {
+      allow create: if isAuth() && request.auth.uid == uid;
+      allow read:   if isAuth() && request.auth.uid == uid;
+      allow update: if isAdmin() ||
+        (isAuth() && request.auth.uid == uid &&
+         !('role' in request.resource.data.diff(resource.data).affectedKeys()));
+      allow list:   if isAdmin();
+    }
+
+    match /richieste/{id} {
+      allow create: if isOperaio() && request.resource.data.authorId == request.auth.uid;
+      allow read:   if isAuth() && (isMagazzino() || resource.data.authorId == request.auth.uid);
+      allow list:   if isMagazzino() || isOperaio();
+      allow update: if isMagazzino();
+      allow delete: if isAdmin();
+    }
+  }
+}
