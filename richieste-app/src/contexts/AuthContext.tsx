@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { auth, db } from '@/lib/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, onSnapshot } from 'firebase/firestore'
 
 export type UserRole = 'pending' | 'operaio' | 'magazzino' | 'admin'
 
@@ -16,47 +16,60 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null
   loading: boolean
-  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
-  refreshUser: async () => {}
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const loadUser = async (uid: string, email: string | null) => {
-    const snap = await getDoc(doc(db, 'users', uid))
-    if (snap.exists()) {
-      const data = snap.data()
-      setUser({ uid, email, name: data.name || email || '', role: data.role || 'pending' })
-    } else {
-      setUser(null)
-    }
-  }
-
-  const refreshUser = async () => {
-    const current = auth.currentUser
-    if (current) await loadUser(current.uid, current.email)
-  }
-
   useEffect(() => {
-    return onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        await loadUser(firebaseUser.uid, firebaseUser.email)
-      } else {
-        setUser(null)
+    let unsubUserDoc: (() => void) | null = null
+
+    const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      // Chiudi il listener precedente sul documento utente, se presente
+      if (unsubUserDoc) {
+        unsubUserDoc()
+        unsubUserDoc = null
       }
-      setLoading(false)
+
+      if (!firebaseUser) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
+
+      // Ascolto in tempo reale del documento utente: qualsiasi cambio di ruolo
+      // (es. approvazione da parte dell'admin) si riflette istantaneamente
+      // nell'app, senza bisogno di refresh o nuovo login.
+      unsubUserDoc = onSnapshot(doc(db, 'users', firebaseUser.uid), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data()
+          setUser({
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: data.name || firebaseUser.email || '',
+            role: data.role || 'pending',
+          })
+        } else {
+          setUser(null)
+        }
+        setLoading(false)
+      })
     })
+
+    return () => {
+      unsubAuth()
+      if (unsubUserDoc) unsubUserDoc()
+    }
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading }}>
       {children}
     </AuthContext.Provider>
   )
