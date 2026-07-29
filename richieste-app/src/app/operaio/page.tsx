@@ -19,7 +19,7 @@ interface Richiesta {
 }
 
 const STATUS_CONFIG: Record<Status, { label: string; color: string; bubbleColor: string }> = {
-  pending:        { label: 'In attesa',            color: 'text-zinc-400',  bubbleColor: 'bg-zinc-800' },
+  pending:        { label: 'In attesa',            color: 'text-zinc-400',  bubbleColor: 'bg-secondary' },
   consegnato:     { label: 'Materiale consegnato', color: 'text-green-400', bubbleColor: 'bg-green-500/10 border border-green-500/30' },
   ordinato:       { label: 'Materiale ordinato',   color: 'text-blue-400',  bubbleColor: 'bg-blue-500/10 border border-blue-500/30' },
   in_lavorazione: { label: 'In lavorazione',       color: 'text-yellow-400',bubbleColor: 'bg-yellow-500/10 border border-yellow-500/30' },
@@ -106,20 +106,20 @@ export default function OperaioPage() {
   let lastDate = ''
 
   return (
-    <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header stile WhatsApp */}
-      <header className="border-b border-zinc-800 px-4 py-3 flex items-center justify-between bg-zinc-900 flex-shrink-0">
+      <header className="border-b border-border px-4 py-3 flex items-center justify-between bg-card flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
-            <Warehouse className="h-5 w-5 text-white" />
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+            <Warehouse className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
-            <p className="text-white font-bold text-sm">Magazzino</p>
+            <p className="text-foreground font-bold text-sm">Magazzino</p>
             <p className="text-green-400 text-[11px]">● online</p>
           </div>
         </div>
         <button onClick={async () => { await signOut(auth); router.replace('/login') }}
-          className="text-zinc-500 hover:text-zinc-300 transition-colors p-2">
+          className="text-muted-foreground hover:text-foreground transition-colors p-2">
           <LogOut className="h-4 w-4" />
         </button>
       </header>
@@ -136,10 +136,10 @@ export default function OperaioPage() {
         {/* Messaggio di benvenuto - bolla ricevuta */}
         <div className="flex justify-start mb-4">
           <div className="max-w-[85%] sm:max-w-[70%]">
-            <div className="bg-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow">
-              <p className="text-sm text-zinc-100 leading-relaxed">{WELCOME_MESSAGE}</p>
+            <div className="bg-secondary rounded-2xl rounded-tl-sm px-4 py-3 shadow">
+              <p className="text-sm text-foreground/90 leading-relaxed">{WELCOME_MESSAGE}</p>
             </div>
-            <p className="text-[10px] text-zinc-600 mt-1 ml-1">Magazzino</p>
+            <p className="text-[10px] text-muted-foreground mt-1 ml-1">Magazzino</p>
           </div>
         </div>
 
@@ -154,21 +154,21 @@ export default function OperaioPage() {
             <div key={r.id}>
               {showDivider && (
                 <div className="flex justify-center my-4">
-                  <span className="bg-zinc-800/80 text-zinc-500 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
+                  <span className="bg-secondary/80 text-muted-foreground text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">
                     {dateStr}
                   </span>
                 </div>
               )}
               <div className="flex justify-end mb-1">
                 <div className="max-w-[85%] sm:max-w-[70%]">
-                  <div className="bg-orange-500 rounded-2xl rounded-tr-sm px-4 py-3 shadow">
-                    <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{r.text}</p>
+                  <div className="bg-primary rounded-2xl rounded-tr-sm px-4 py-3 shadow">
+                    <p className="text-sm text-primary-foreground leading-relaxed whitespace-pre-wrap">{r.text}</p>
                     <div className="flex items-center justify-end gap-1 mt-1.5">
-                      <span className="text-[10px] text-orange-100/80">{formatTime(r.createdAt)}</span>
+                      <span className="text-[10px] text-primary-foreground/70">{formatTime(r.createdAt)}</span>
                       {r.status === 'pending' ? (
-                        <Check className="h-3.5 w-3.5 text-orange-100/60" />
+                        <Check className="h-3.5 w-3.5 text-primary-foreground/60" />
                       ) : (
-                        <CheckCheck className="h-3.5 w-3.5 text-orange-100" />
+                        <CheckCheck className="h-3.5 w-3.5 text-primary-foreground" />
                       )}
                     </div>
                   </div>
@@ -181,7 +181,7 @@ export default function OperaioPage() {
                     </div>
                   )}
                   {r.status === 'pending' && (
-                    <p className="text-[10px] text-zinc-600 mt-1 mr-1 text-right">In attesa di risposta...</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 mr-1 text-right">In attesa di risposta...</p>
                   )}
                 </div>
               </div>
@@ -191,7 +191,7 @@ export default function OperaioPage() {
       </div>
 
       {/* Input area stile WhatsApp */}
-      <div className="border-t border-zinc-800 bg-zinc-900 px-3 py-3 flex-shrink-0">
+      <div className="border-t border-border bg-card px-3 py-3 flex-shrink-0">
         <div className="flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -200,13 +200,13 @@ export default function OperaioPage() {
             onKeyDown={handleKeyDown}
             placeholder="Scrivi cosa ti serve..."
             rows={1}
-            className="flex-1 bg-zinc-800 border border-zinc-700 rounded-3xl px-4 py-3 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-orange-500 transition-colors resize-none max-h-32"
+            className="flex-1 bg-secondary border border-border rounded-3xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors resize-none max-h-32"
             style={{ minHeight: '44px' }}
           />
           <button
             onClick={handleSubmit}
             disabled={submitting || !text.trim()}
-            className="w-11 h-11 rounded-full bg-orange-500 hover:bg-orange-400 disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors flex-shrink-0"
+            className="w-11 h-11 rounded-full bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:cursor-not-allowed text-primary-foreground flex items-center justify-center transition-colors flex-shrink-0"
           >
             <Send className="h-4 w-4" />
           </button>
