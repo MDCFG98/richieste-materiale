@@ -30,14 +30,14 @@ export default function PendingPage() {
 
   if (justApproved) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-sm text-center space-y-6">
           <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/30 flex items-center justify-center mx-auto animate-pulse">
             <CheckCircle2 className="h-8 w-8 text-green-500" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-white">Sei stato approvato!</h1>
-            <p className="text-zinc-500 text-sm mt-2">Ti stiamo reindirizzando...</p>
+            <h1 className="font-serif-myhra text-2xl text-foreground">Sei stato approvato!</h1>
+            <p className="text-muted-foreground text-sm mt-2">Ti stiamo reindirizzando...</p>
           </div>
         </div>
       </div>
@@ -45,21 +45,21 @@ export default function PendingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm text-center space-y-6">
         <div className="w-16 h-16 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center mx-auto">
           <Clock className="h-8 w-8 text-yellow-500" />
         </div>
         <div>
-          <h1 className="text-xl font-black text-white">In attesa di approvazione</h1>
-          <p className="text-zinc-500 text-sm mt-2">
+          <h1 className="font-serif-myhra text-2xl text-foreground">In attesa di approvazione</h1>
+          <p className="text-muted-foreground text-sm mt-2">
             La tua registrazione è in attesa di approvazione da parte del magazzino.
             Non appena verrai approvato, questa pagina si aggiornerà automaticamente.
           </p>
         </div>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 mx-auto text-xs text-zinc-500 hover:text-white transition-colors uppercase tracking-widest font-bold"
+          className="flex items-center gap-2 mx-auto text-xs text-muted-foreground hover:text-foreground transition-colors uppercase tracking-widest font-bold"
         >
           <LogOut className="h-4 w-4" />
           Esci
