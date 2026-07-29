@@ -4,14 +4,13 @@ import { useRouter } from 'next/navigation'
 import { db } from '@/lib/firebase'
 import { collection, onSnapshot, doc, updateDoc } from 'firebase/firestore'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Check, X, Shield, HardHat, Warehouse } from 'lucide-react'
+import { ArrowLeft, X, Shield, HardHat, Warehouse } from 'lucide-react'
 
 type UserRole = 'pending' | 'operaio' | 'magazzino' | 'admin'
 
 interface AppUser {
   id: string
   name: string
-  email: string
   role: UserRole
 }
 
@@ -51,14 +50,14 @@ export default function AdminPage() {
   if (!user || user.role !== 'admin') return null
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col">
-      <header className="border-b border-zinc-800 px-4 py-4 flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-zinc-500 hover:text-white transition-colors">
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b border-border px-4 py-4 flex items-center gap-3">
+        <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div>
-          <p className="text-white font-black text-sm">Gestione Utenti</p>
-          <p className="text-zinc-500 text-[10px] uppercase tracking-widest">Pannello Admin</p>
+          <p className="text-foreground font-bold text-sm">Gestione Utenti</p>
+          <p className="text-eyebrow">Pannello Admin</p>
         </div>
       </header>
 
@@ -72,16 +71,13 @@ export default function AdminPage() {
               Da approvare ({pending.length})
             </h2>
             {pending.map(u => (
-              <div key={u.id} className="bg-zinc-900 border border-yellow-500/20 rounded-2xl p-4 flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-black text-white">{u.name}</p>
-                  <p className="text-[10px] text-zinc-500">{u.email}</p>
-                </div>
+              <div key={u.id} className="myhra-card border-yellow-500/30 p-4 flex items-center justify-between gap-4">
+                <p className="text-sm font-black text-foreground">{u.name}</p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setRole(u.id, 'operaio')}
                     disabled={updating === u.id}
-                    className="flex items-center gap-1.5 bg-zinc-700 hover:bg-orange-500 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 bg-secondary hover:bg-primary hover:text-primary-foreground text-foreground px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-40"
                   >
                     <HardHat className="h-3 w-3" />
                     Operaio
@@ -89,7 +85,7 @@ export default function AdminPage() {
                   <button
                     onClick={() => setRole(u.id, 'magazzino')}
                     disabled={updating === u.id}
-                    className="flex items-center gap-1.5 bg-zinc-700 hover:bg-blue-500 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 bg-secondary hover:bg-blue-500 hover:text-white text-foreground px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-40"
                   >
                     <Warehouse className="h-3 w-3" />
                     Magazzino
@@ -102,17 +98,14 @@ export default function AdminPage() {
 
         {/* All approved users */}
         <div className="space-y-3">
-          <h2 className="text-xs font-black uppercase tracking-widest text-zinc-500">
+          <h2 className="text-eyebrow">
             Utenti attivi ({approved.length})
           </h2>
           {approved.map(u => {
             const cfg = ROLE_CONFIG[u.role]
             return (
-              <div key={u.id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-white truncate">{u.name}</p>
-                  <p className="text-[10px] text-zinc-500 truncate">{u.email}</p>
-                </div>
+              <div key={u.id} className="myhra-card p-4 flex items-center justify-between gap-4">
+                <p className="text-sm font-black text-foreground truncate min-w-0">{u.name}</p>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${cfg.color}`}>
                     {cfg.label}
@@ -123,7 +116,7 @@ export default function AdminPage() {
                       value={u.role}
                       disabled={updating === u.id}
                       onChange={e => setRole(u.id, e.target.value as UserRole)}
-                      className="bg-zinc-800 border border-zinc-700 text-zinc-400 text-[10px] rounded-lg px-2 py-1 focus:outline-none focus:border-orange-500 uppercase font-bold"
+                      className="bg-secondary border border-border text-foreground/80 text-[10px] rounded-lg px-2 py-1 focus:outline-none focus:border-primary uppercase font-bold"
                     >
                       <option value="operaio">Operaio</option>
                       <option value="magazzino">Magazzino</option>
