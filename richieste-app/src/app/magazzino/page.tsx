@@ -131,7 +131,7 @@ export default function MagazzinoPage() {
     return richieste.filter(r => {
       if (filter !== 'tutte' && r.status !== filter) return false
       if (operaioFilter !== 'tutti' && r.authorName !== operaioFilter) return false
-      if (s && !r.text.toLowerCase().includes(s) && !r.authorName?.toLowerCase().includes(s)) return false
+      if (s && !r.text?.toLowerCase().includes(s) && !r.authorName?.toLowerCase().includes(s)) return false
       return true
     })
   }, [richieste, filter, operaioFilter, search])
