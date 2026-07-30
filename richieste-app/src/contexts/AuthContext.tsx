@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email,
-            name: data.name || firebaseUser.email || '',
+            name: data.name || 'Utente',
             role: data.role || 'pending',
           })
         } else {
