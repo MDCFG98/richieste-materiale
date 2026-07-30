@@ -5,7 +5,7 @@ import { db, auth } from '@/lib/firebase'
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Warehouse, Users, Download, FileText, Loader2, Search, Trash2, X } from 'lucide-react'
+import { LogOut, Warehouse, Users, Download, Loader2, Search, Trash2, X, Printer } from 'lucide-react'
 
 type Status = 'pending' | 'consegnato' | 'ordinato' | 'in_lavorazione' | 'non_approvato'
 type FilterType = 'tutte' | Status
@@ -43,7 +43,6 @@ const FILTERS: { key: FilterType; label: string }[] = [
   { key: 'non_approvato',  label: 'Non approvate' },
 ]
 
-// Etichetta leggibile per il raggruppamento per data (Oggi / Ieri / data completa)
 function dateGroupLabel(date: Date): string {
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -67,6 +66,7 @@ export default function MagazzinoPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [exportingHistory, setExportingHistory] = useState(false)
   const [exportingModulo, setExportingModulo] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) router.replace('/login')
@@ -95,6 +95,7 @@ export default function MagazzinoPage() {
     setDeletingId(r.id)
     try {
       await deleteDoc(doc(db, 'richieste', r.id))
+      setOpenId(null)
     } finally {
       setDeletingId(null)
     }
@@ -120,7 +121,6 @@ export default function MagazzinoPage() {
     }
   }
 
-  // Elenco operai unici, per il filtro "storico per operaio"
   const operai = useMemo(() => {
     const nomi = new Set(richieste.map(r => r.authorName).filter(Boolean))
     return Array.from(nomi).sort((a, b) => a.localeCompare(b))
@@ -136,7 +136,6 @@ export default function MagazzinoPage() {
     })
   }, [richieste, filter, operaioFilter, search])
 
-  // Raggruppamento per data, mantenendo l'ordine già decrescente
   const grouped = useMemo(() => {
     const groups: { label: string; items: Richiesta[] }[] = []
     for (const r of filtered) {
@@ -151,6 +150,7 @@ export default function MagazzinoPage() {
 
   const pendingCount = richieste.filter(r => r.status === 'pending').length
   const hasActiveFilters = filter !== 'tutte' || operaioFilter !== 'tutti' || search.trim() !== ''
+  const openRichiesta = richieste.find(r => r.id === openId) || null
 
   if (!user) return null
 
@@ -216,7 +216,7 @@ export default function MagazzinoPage() {
           )}
         </div>
 
-        {/* Filtro per operaio (storico per persona) */}
+        {/* Filtro per operaio */}
         {operai.length > 0 && (
           <select
             value={operaioFilter}
@@ -259,10 +259,10 @@ export default function MagazzinoPage() {
           <div className="text-center py-20 text-muted-foreground text-sm">Nessuna richiesta</div>
         )}
 
-        {/* Lista richieste, raggruppata per data */}
+        {/* Lista compatta, raggruppata per data — tocca una riga per aprirla */}
         <div className="space-y-6">
           {grouped.map(group => (
-            <div key={group.label} className="space-y-4">
+            <div key={group.label} className="space-y-2">
               <div className="flex items-center gap-3">
                 <span className="text-eyebrow capitalize">{group.label}</span>
                 <div className="myhra-divider flex-1" />
@@ -271,85 +271,126 @@ export default function MagazzinoPage() {
               {group.items.map(r => {
                 const cfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending
                 const date = r.createdAt?.toDate?.()
-                const isUpdating = updatingId === r.id
-                const isDeleting = deletingId === r.id
-                const isExportingThis = exportingModulo === r.id
 
                 return (
-                  <div key={r.id}
-                    className={`myhra-card p-5 space-y-4 transition-opacity ${
-                      (isUpdating || isDeleting) ? 'opacity-40 pointer-events-none' : ''
-                    } ${r.status === 'pending' ? 'border-yellow-500/30' : ''}`}
+                  <button
+                    key={r.id}
+                    onClick={() => setOpenId(r.id)}
+                    className={`w-full text-left myhra-card p-4 flex items-center gap-3 hover:border-primary/40 ${
+                      r.status === 'pending' ? 'border-yellow-500/30' : ''
+                    }`}
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-secondary flex items-center justify-center text-[11px] font-black text-foreground/80 flex-shrink-0">
-                          {r.authorName?.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-xs font-black text-foreground uppercase tracking-wide truncate">{r.authorName}</p>
-                          {date && (
-                            <p className="text-[9px] text-muted-foreground uppercase tracking-widest">
-                              {date.toLocaleDateString('it-IT')} — {date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${cfg.color}`}>
-                          {cfg.label}
-                        </span>
-                        {user.role === 'admin' && (
-                          <button
-                            onClick={() => handleDelete(r)}
-                            disabled={isDeleting}
-                            title="Elimina definitivamente"
-                            className="text-muted-foreground hover:text-red-400 transition-colors p-1"
-                          >
-                            {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                          </button>
+                    <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-xs font-black text-foreground/80 flex-shrink-0">
+                      {r.authorName?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-black text-foreground uppercase tracking-wide truncate">{r.authorName}</p>
+                        {date && (
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-widest flex-shrink-0">
+                            {date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
                         )}
                       </div>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{r.text}</p>
                     </div>
-
-                    <p className="text-sm text-foreground/90 leading-relaxed bg-secondary/50 rounded-xl px-4 py-3 whitespace-pre-wrap">
-                      {r.text}
-                    </p>
-
-                    {/* Pulsanti azione — 4 in griglia 2x2 su mobile, 4 in fila su desktop */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {ACTION_BUTTONS.map(btn => (
-                        <button
-                          key={btn.status}
-                          onClick={() => updateStatus(r.id, btn.status)}
-                          disabled={isUpdating || r.status === btn.status}
-                          className={`py-2.5 px-2 rounded-xl text-[9px] font-black uppercase tracking-wide transition-all disabled:cursor-default leading-tight ${
-                            r.status === btn.status
-                              ? `${btn.style} ring-2 ring-white/30 opacity-100`
-                              : `${btn.style} opacity-50 hover:opacity-100`
-                          }`}
-                        >
-                          {btn.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Genera modulo di consegna PDF */}
-                    <button
-                      onClick={() => handleExportModulo(r)}
-                      disabled={isExportingThis}
-                      className="w-full flex items-center justify-center gap-2 border border-border hover:border-primary hover:text-primary text-muted-foreground text-[10px] font-black uppercase tracking-widest py-2.5 rounded-xl transition-colors"
-                    >
-                      {isExportingThis ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-                      Genera Modulo di Consegna PDF
-                    </button>
-                  </div>
+                    <span className={`text-[9px] font-black uppercase px-2.5 py-1 rounded-full border flex-shrink-0 ${cfg.color}`}>
+                      {cfg.label}
+                    </span>
+                  </button>
                 )
               })}
             </div>
           ))}
         </div>
       </div>
+
+      {/* Pannello di dettaglio — si apre toccando una richiesta */}
+      {openRichiesta && (() => {
+        const r = openRichiesta
+        const cfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending
+        const date = r.createdAt?.toDate?.()
+        const isUpdating = updatingId === r.id
+        const isDeleting = deletingId === r.id
+        const isExportingThis = exportingModulo === r.id
+
+        return (
+          <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
+               onClick={() => setOpenId(null)}>
+            <div
+              onClick={e => e.stopPropagation()}
+              className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-xs font-black text-foreground/80 flex-shrink-0">
+                    {r.authorName?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-foreground truncate">{r.authorName}</p>
+                    {date && (
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest">
+                        {date.toLocaleDateString('it-IT')} — {date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => setOpenId(null)} className="text-muted-foreground hover:text-foreground p-1 flex-shrink-0">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <span className={`inline-block text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${cfg.color}`}>
+                {cfg.label}
+              </span>
+
+              <p className="text-sm text-foreground/90 leading-relaxed bg-secondary/50 rounded-xl px-4 py-3 whitespace-pre-wrap">
+                {r.text}
+              </p>
+
+              <div>
+                <p className="text-eyebrow mb-2">Cambia stato</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {ACTION_BUTTONS.map(btn => (
+                    <button
+                      key={btn.status}
+                      onClick={() => updateStatus(r.id, btn.status)}
+                      disabled={isUpdating || r.status === btn.status}
+                      className={`py-2.5 px-2 rounded-xl text-[9px] font-black uppercase tracking-wide transition-all disabled:cursor-default leading-tight ${
+                        r.status === btn.status
+                          ? `${btn.style} ring-2 ring-white/30 opacity-100`
+                          : `${btn.style} opacity-50 hover:opacity-100`
+                      }`}
+                    >
+                      {isUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin mx-auto" /> : btn.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleExportModulo(r)}
+                disabled={isExportingThis}
+                className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-black uppercase tracking-widest py-3 rounded-xl transition-colors"
+              >
+                {isExportingThis ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                Stampa
+              </button>
+
+              {user.role === 'admin' && (
+                <button
+                  onClick={() => handleDelete(r)}
+                  disabled={isDeleting}
+                  className="w-full flex items-center justify-center gap-2 border border-destructive/30 hover:bg-destructive/10 text-red-400 text-[10px] font-black uppercase tracking-widest py-2.5 rounded-xl transition-colors"
+                >
+                  {isDeleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  Elimina richiesta
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
