@@ -88,14 +88,17 @@ export default function MagazzinoPage() {
   }
 
   const handleDelete = async (r: Richiesta) => {
+    const anteprima = (r.text || '(nessun testo)').slice(0, 60)
     const ok = window.confirm(
-      `Eliminare definitivamente la richiesta di ${r.authorName}?\n\n"${r.text.slice(0, 60)}${r.text.length > 60 ? '…' : ''}"\n\nQuesta azione non si può annullare.`
+      `Eliminare definitivamente la richiesta di ${r.authorName || 'operaio sconosciuto'}?\n\n"${anteprima}${(r.text?.length || 0) > 60 ? '…' : ''}"\n\nQuesta azione non si può annullare.`
     )
     if (!ok) return
     setDeletingId(r.id)
     try {
       await deleteDoc(doc(db, 'richieste', r.id))
       setOpenId(null)
+    } catch (e: any) {
+      window.alert('Non sono riuscito a eliminare la richiesta.\n\n' + (e?.message || e))
     } finally {
       setDeletingId(null)
     }
