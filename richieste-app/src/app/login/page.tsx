@@ -1,132 +1,139 @@
 "use client"
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase'
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword
-} from 'firebase/auth'
+import { signInAnonymously } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { Loader2, HardHat } from 'lucide-react'
+import { Loader2, HardHat, ArrowRight, ArrowLeft } from 'lucide-react'
+
+// Il codice aziendale è unico per tutti e fisso: si imposta come variabile
+// d'ambiente su Vercel (NEXT_PUBLIC_CODICE_ACCESSO). Serve solo a tenere
+// fuori chi non c'entra, non a distinguere le persone.
+const CODICE_ACCESSO = process.env.NEXT_PUBLIC_CODICE_ACCESSO || ''
 
 export default function LoginPage() {
   const router = useRouter()
-  const [isRegister, setIsRegister] = useState(false)
+  const [step, setStep] = useState<'codice' | 'nome'>('codice')
+  const [codice, setCodice] = useState('')
   const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
-  const handleSubmit = async () => {
+  const handleCodiceSubmit = () => {
     setError('')
-    if (!email || !password) { setError('Compila tutti i campi'); return }
-    if (isRegister && !name.trim()) { setError('Inserisci il tuo nome'); return }
+    if (!codice.trim()) { setError('Inserisci il codice') ; return }
+    if (codice.trim() !== CODICE_ACCESSO) {
+      setError('Codice sbagliato, riprova')
+      return
+    }
+    setStep('nome')
+    setTimeout(() => nameInputRef.current?.focus(), 100)
+  }
+
+  const handleNomeSubmit = async () => {
+    setError('')
+    if (!name.trim()) { setError('Inserisci nome e cognome'); return }
     setLoading(true)
     try {
-      if (isRegister) {
-        const cred = await createUserWithEmailAndPassword(auth, email, password)
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          name: name.trim(),
-          email,
-          role: 'pending',
-          createdAt: serverTimestamp()
-        })
-        router.replace('/pending')
-      } else {
-        await signInWithEmailAndPassword(auth, email, password)
-        router.replace('/')
-      }
+      const cred = await signInAnonymously(auth)
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        name: name.trim(),
+        role: 'pending',
+        createdAt: serverTimestamp()
+      })
+      router.replace('/pending')
     } catch (e: any) {
-      const msg: Record<string, string> = {
-        'auth/user-not-found': 'Utente non trovato',
-        'auth/wrong-password': 'Password errata',
-        'auth/email-already-in-use': 'Email già registrata',
-        'auth/weak-password': 'Password troppo corta (min 6 caratteri)',
-        'auth/invalid-email': 'Email non valida',
-        'auth/invalid-credential': 'Credenziali non valide',
-      }
-      setError(msg[e.code] || 'Errore: ' + e.message)
-    } finally {
+      setError('Errore, riprova: ' + e.message)
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
-          <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center mb-4 shadow-xl shadow-orange-500/20">
-            <HardHat className="h-7 w-7 text-white" />
+          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-xl shadow-primary/20">
+            <HardHat className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">Richieste Materiale</h1>
-          <p className="text-zinc-500 text-xs mt-1 uppercase tracking-widest">Construction & Drilling</p>
+          <h1 className="font-serif-myhra text-3xl text-foreground">Richieste Materiale</h1>
+          <p className="text-eyebrow mt-2">Construction & Drilling</p>
         </div>
 
         {/* Card */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 space-y-4">
-          <h2 className="text-sm font-bold text-zinc-300 uppercase tracking-widest">
-            {isRegister ? 'Registrazione' : 'Accesso'}
-          </h2>
-
-          {isRegister && (
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-zinc-500 uppercase">Nome e Cognome</label>
+        <div className="myhra-card p-6 space-y-5">
+          {step === 'codice' ? (
+            <>
+              <h2 className="text-eyebrow">Codice Azienda</h2>
+              <p className="text-base text-foreground/80">
+                Inserisci il codice che ti ha dato l'ufficio.
+              </p>
               <input
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={codice}
+                onChange={e => setCodice(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleCodiceSubmit()}
+                placeholder="Codice"
+                className="w-full bg-secondary border border-border rounded-xl px-4 py-4 text-2xl text-center tracking-widest text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
+              />
+
+              {error && (
+                <div className="bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3">
+                  <p className="text-sm text-destructive font-bold">{error}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleCodiceSubmit}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-4 rounded-xl text-lg transition-colors flex items-center justify-center gap-2"
+              >
+                Avanti
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => { setStep('codice'); setError('') }}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Indietro
+              </button>
+
+              <h2 className="text-eyebrow">Il tuo nome</h2>
+              <p className="text-base text-foreground/80">
+                Come ti chiami? Scrivilo una volta sola, poi non serve più.
+              </p>
+              <input
+                ref={nameInputRef}
                 type="text"
                 value={name}
                 onChange={e => setName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleNomeSubmit()}
                 placeholder="Mario Rossi"
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500 transition-colors"
+                className="w-full bg-secondary border border-border rounded-xl px-4 py-4 text-xl text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
               />
-            </div>
+
+              {error && (
+                <div className="bg-destructive/10 border border-destructive/30 rounded-xl px-4 py-3">
+                  <p className="text-sm text-destructive font-bold">{error}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handleNomeSubmit}
+                disabled={loading}
+                className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground font-bold py-4 rounded-xl text-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {loading && <Loader2 className="h-5 w-5 animate-spin" />}
+                Entra
+              </button>
+            </>
           )}
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-zinc-500 uppercase">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="mario@azienda.it"
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500 transition-colors"
-            />
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-zinc-500 uppercase">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500 transition-colors"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
-              <p className="text-xs text-red-400 font-bold">{error}</p>
-            </div>
-          )}
-
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-orange-500 hover:bg-orange-400 disabled:opacity-50 text-white font-black py-3 rounded-xl text-sm uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {isRegister ? 'Registrati' : 'Accedi'}
-          </button>
-
-          <button
-            onClick={() => { setIsRegister(!isRegister); setError('') }}
-            className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-1"
-          >
-            {isRegister ? 'Hai già un account? Accedi' : 'Non hai un account? Registrati'}
-          </button>
         </div>
       </div>
     </div>
