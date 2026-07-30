@@ -2,10 +2,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { db, auth } from '@/lib/firebase'
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'
+import { collection, addDoc, serverTimestamp, query, where, onSnapshot, Timestamp } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { useAuth } from '@/contexts/AuthContext'
-import { Send, LogOut, HardHat, Warehouse, Check, CheckCheck } from 'lucide-react'
+import { Send, LogOut, Warehouse, Check, CheckCheck } from 'lucide-react'
 
 type Status = 'pending' | 'consegnato' | 'ordinato' | 'in_lavorazione' | 'non_approvato'
 
@@ -28,6 +28,9 @@ const STATUS_CONFIG: Record<Status, { label: string; color: string; bubbleColor:
 
 const WELCOME_MESSAGE = "Ciao! Se hai bisogno di materiale chiedi pure, il magazzino riceverà in live qualsiasi tua richiesta. Scrivi liberamente, ti terremo aggiornato sull'esito della richiesta. Saluti dal magazzino."
 
+// Risposta automatica mostrata subito dopo l'invio, finché il magazzino non aggiorna davvero lo stato
+const AUTO_REPLY = "Il magazzino ha preso in carico la tua richiesta. Controlla più tardi per verificarne lo stato."
+
 export default function OperaioPage() {
   const { user } = useAuth()
   const router = useRouter()
@@ -45,14 +48,19 @@ export default function OperaioPage() {
 
   useEffect(() => {
     if (!user) return
-    const q = query(
-      collection(db, 'richieste'),
-      where('authorId', '==', user.uid),
-      orderBy('createdAt', 'asc')
+    // Nota: niente orderBy qui apposta — un where + orderBy insieme richiede
+    // un indice composto su Firestore che va creato a mano nella console.
+    // Ordiniamo lato client per evitare quel passaggio manuale.
+    const q = query(collection(db, 'richieste'), where('authorId', '==', user.uid))
+    return onSnapshot(
+      q,
+      snap => {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() } as Richiesta))
+        items.sort((a, b) => (a.createdAt?.toMillis?.() || 0) - (b.createdAt?.toMillis?.() || 0))
+        setRichieste(items)
+      },
+      err => console.error('Errore caricamento richieste:', err)
     )
-    return onSnapshot(q, snap => {
-      setRichieste(snap.docs.map(d => ({ id: d.id, ...d.data() } as Richiesta)))
-    })
   }, [user])
 
   // Auto-scroll to bottom on new message
@@ -73,6 +81,8 @@ export default function OperaioPage() {
       })
       setText('')
       textareaRef.current?.focus()
+    } catch (e: any) {
+      window.alert('Non sono riuscito a inviare la richiesta.\n\n' + (e?.message || e))
     } finally {
       setSubmitting(false)
     }
@@ -159,6 +169,8 @@ export default function OperaioPage() {
                   </span>
                 </div>
               )}
+
+              {/* Bolla inviata dall'operaio */}
               <div className="flex justify-end mb-1">
                 <div className="max-w-[85%] sm:max-w-[70%]">
                   <div className="bg-primary rounded-2xl rounded-tr-sm px-4 py-3 shadow">
@@ -172,19 +184,31 @@ export default function OperaioPage() {
                       )}
                     </div>
                   </div>
-                  {/* Badge di stato sotto la bolla, come una risposta rapida del sistema */}
-                  {r.status !== 'pending' && (
-                    <div className="flex justify-end mt-1 mr-1">
-                      <span className={`text-[10px] font-bold uppercase tracking-wide px-2.5 py-1 rounded-full ${cfg.bubbleColor} ${cfg.color}`}>
-                        {cfg.label}
-                      </span>
-                    </div>
-                  )}
-                  {r.status === 'pending' && (
-                    <p className="text-[10px] text-muted-foreground mt-1 mr-1 text-right">In attesa di risposta...</p>
-                  )}
                 </div>
               </div>
+
+              {r.status === 'pending' ? (
+                /* Risposta automatica simulata, finché il magazzino non aggiorna davvero */
+                <div className="flex justify-start mb-4 mt-1">
+                  <div className="max-w-[85%] sm:max-w-[70%]">
+                    <div className="bg-secondary rounded-2xl rounded-tl-sm px-4 py-3 shadow">
+                      <p className="text-sm text-foreground/80 leading-relaxed">{AUTO_REPLY}</p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1 ml-1">Magazzino</p>
+                  </div>
+                </div>
+              ) : (
+                /* Aggiornamento di stato reale, arrivato dal magazzino */
+                <div className="flex justify-start mb-4 mt-1">
+                  <div className="max-w-[85%] sm:max-w-[70%]">
+                    <div className={`rounded-2xl rounded-tl-sm px-4 py-3 shadow ${cfg.bubbleColor}`}>
+                      <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${cfg.color}`}>{cfg.label}</p>
+                      <p className="text-sm text-foreground/90 leading-relaxed">Aggiornamento sulla tua richiesta di materiale.</p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1 ml-1">Magazzino</p>
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}
