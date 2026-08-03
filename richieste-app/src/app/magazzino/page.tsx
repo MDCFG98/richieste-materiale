@@ -2,10 +2,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { db, auth } from '@/lib/firebase'
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore'
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc, addDoc, Timestamp } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { useAuth } from '@/contexts/AuthContext'
-import { LogOut, Warehouse, Users, Download, Loader2, Search, Trash2, X, Printer } from 'lucide-react'
+import { LogOut, Warehouse, Users, Download, Loader2, Search, Trash2, X, Printer, Plus } from 'lucide-react'
 
 type Status = 'pending' | 'consegnato' | 'ordinato' | 'in_lavorazione' | 'non_approvato'
 type FilterType = 'tutte' | Status
@@ -67,6 +67,12 @@ export default function MagazzinoPage() {
   const [exportingHistory, setExportingHistory] = useState(false)
   const [exportingModulo, setExportingModulo] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [showManualModal, setShowManualModal] = useState(false)
+  const [manualOperatore, setManualOperatore] = useState('')
+  const [manualData, setManualData] = useState(() => new Date().toISOString().slice(0, 10))
+  const [manualMateriale, setManualMateriale] = useState('')
+  const [manualStatus, setManualStatus] = useState<Status>('pending')
+  const [savingManual, setSavingManual] = useState(false)
 
   useEffect(() => {
     if (!user) router.replace('/login')
@@ -101,6 +107,40 @@ export default function MagazzinoPage() {
       window.alert('Non sono riuscito a eliminare la richiesta.\n\n' + (e?.message || e))
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const resetManualForm = () => {
+    setManualOperatore('')
+    setManualData(new Date().toISOString().slice(0, 10))
+    setManualMateriale('')
+    setManualStatus('pending')
+  }
+
+  const handleManualSubmit = async () => {
+    if (!user || !manualOperatore.trim() || !manualMateriale.trim()) return
+    setSavingManual(true)
+    try {
+      // Interpretiamo la data scelta a mezzogiorno locale, per evitare
+      // che il fuso orario la faccia scivolare al giorno prima/dopo.
+      const [y, m, d] = manualData.split('-').map(Number)
+      const createdAt = Timestamp.fromDate(new Date(y, (m || 1) - 1, d || 1, 12, 0, 0))
+
+      await addDoc(collection(db, 'richieste'), {
+        text: manualMateriale.trim(),
+        authorId: user.uid,
+        authorName: manualOperatore.trim(),
+        status: manualStatus,
+        createdAt,
+        insertedManually: true,
+        insertedBy: user.name
+      })
+      resetManualForm()
+      setShowManualModal(false)
+    } catch (e: any) {
+      window.alert('Non sono riuscito a inserire la richiesta.\n\n' + (e?.message || e))
+    } finally {
+      setSavingManual(false)
     }
   }
 
@@ -178,6 +218,14 @@ export default function MagazzinoPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowManualModal(true)}
+            className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl transition-colors"
+            title="Inserisci richiesta dal cartaceo"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Richiesta manuale</span>
+          </button>
           <button
             onClick={handleExportHistory}
             disabled={exportingHistory || filtered.length === 0}
@@ -394,6 +442,90 @@ export default function MagazzinoPage() {
           </div>
         )
       })()}
+
+      {/* Modale inserimento manuale — per le richieste che arrivano ancora su carta */}
+      {showManualModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
+             onClick={() => !savingManual && setShowManualModal(false)}>
+          <div
+            onClick={e => e.stopPropagation()}
+            className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto p-5 space-y-4"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-black text-foreground">Richiesta manuale</p>
+                <p className="text-eyebrow">Inserimento da modulo cartaceo</p>
+              </div>
+              <button
+                onClick={() => !savingManual && setShowManualModal(false)}
+                className="text-muted-foreground hover:text-foreground p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-eyebrow mb-1.5 block">Operatore</label>
+                <input
+                  type="text"
+                  list="operai-esistenti"
+                  value={manualOperatore}
+                  onChange={e => setManualOperatore(e.target.value)}
+                  placeholder="Nome e cognome"
+                  className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
+                />
+                <datalist id="operai-esistenti">
+                  {operai.map(nome => <option key={nome} value={nome} />)}
+                </datalist>
+              </div>
+
+              <div>
+                <label className="text-eyebrow mb-1.5 block">Data richiesta</label>
+                <input
+                  type="date"
+                  value={manualData}
+                  onChange={e => setManualData(e.target.value)}
+                  className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="text-eyebrow mb-1.5 block">Materiale richiesto</label>
+                <textarea
+                  value={manualMateriale}
+                  onChange={e => setManualMateriale(e.target.value)}
+                  placeholder="Cosa ha chiesto l'operatore..."
+                  rows={3}
+                  className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-eyebrow mb-1.5 block">Stato iniziale</label>
+                <select
+                  value={manualStatus}
+                  onChange={e => setManualStatus(e.target.value as Status)}
+                  className="w-full bg-secondary border border-border rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-foreground focus:outline-none focus:border-primary transition-colors"
+                >
+                  {(Object.keys(STATUS_CONFIG) as Status[]).map(s => (
+                    <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <button
+              onClick={handleManualSubmit}
+              disabled={savingManual || !manualOperatore.trim() || !manualMateriale.trim()}
+              className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground text-xs font-black uppercase tracking-widest py-3 rounded-xl transition-colors"
+            >
+              {savingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Inserisci richiesta
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
