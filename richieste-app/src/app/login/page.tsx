@@ -3,7 +3,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { auth, db } from '@/lib/firebase'
 import { signInAnonymously } from 'firebase/auth'
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, setDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore'
 import { Loader2, HardHat, ArrowRight, ArrowLeft } from 'lucide-react'
 
 // Il codice aziendale è unico per tutti e fisso: si imposta come variabile
@@ -36,13 +36,31 @@ export default function LoginPage() {
     if (!name.trim()) { setError('Inserisci nome e cognome'); return }
     setLoading(true)
     try {
+      const nameKey = name.trim().toLowerCase()
       const cred = await signInAnonymously(auth)
+
+      // Se questo nome è già registrato e approvato (es. il dispositivo ha
+      // perso la sessione, o sta accedendo da un altro telefono/PC), lo
+      // riconosciamo e lo facciamo entrare subito con lo stesso ruolo,
+      // senza richiedere una nuova approvazione da parte del magazzino.
+      const q = query(collection(db, 'users'), where('nameKey', '==', nameKey))
+      const snap = await getDocs(q)
+      const giaApprovato = snap.docs
+        .map(d => d.data())
+        .find(u => u.role && u.role !== 'pending')
+
+      const role = giaApprovato ? giaApprovato.role : 'pending'
+
       await setDoc(doc(db, 'users', cred.user.uid), {
         name: name.trim(),
-        role: 'pending',
+        nameKey,
+        role,
         createdAt: serverTimestamp()
       })
-      router.replace('/pending')
+
+      if (role === 'pending') router.replace('/pending')
+      else if (role === 'magazzino' || role === 'admin') router.replace('/magazzino')
+      else router.replace('/operaio')
     } catch (e: any) {
       setError('Errore, riprova: ' + e.message)
       setLoading(false)
