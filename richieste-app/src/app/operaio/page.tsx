@@ -5,7 +5,8 @@ import { db, auth } from '@/lib/firebase'
 import { collection, addDoc, serverTimestamp, query, where, onSnapshot, Timestamp } from 'firebase/firestore'
 import { signOut } from 'firebase/auth'
 import { useAuth } from '@/contexts/AuthContext'
-import { Send, LogOut, Warehouse, Check, CheckCheck } from 'lucide-react'
+import { Send, LogOut, Warehouse, Check, CheckCheck, Bell, X } from 'lucide-react'
+import { attivaNotifiche } from '@/lib/notifications'
 
 type Status = 'pending' | 'consegnato' | 'ordinato' | 'in_lavorazione' | 'non_approvato'
 
@@ -39,6 +40,8 @@ export default function OperaioPage() {
   const [richieste, setRichieste] = useState<Richiesta[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [showNotifBanner, setShowNotifBanner] = useState(false)
+  const [activatingNotif, setActivatingNotif] = useState(false)
 
   useEffect(() => {
     if (!user) router.replace('/login')
@@ -67,6 +70,27 @@ export default function OperaioPage() {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [richieste])
+
+  // Se il browser supporta le notifiche e non è mai stato chiesto il
+  // permesso (né accettato né rifiutato), mostriamo il banner per attivarle.
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      setShowNotifBanner(true)
+    }
+  }, [])
+
+  const handleAttivaNotifiche = async () => {
+    if (!user) return
+    setActivatingNotif(true)
+    const esito = await attivaNotifiche(user.uid)
+    setActivatingNotif(false)
+    setShowNotifBanner(false)
+    if (esito === 'negato') {
+      window.alert('Hai rifiutato le notifiche. Se cambi idea, puoi attivarle dalle impostazioni del browser.')
+    } else if (esito === 'errore' || esito === 'non-supportate') {
+      window.alert('Non sono riuscito ad attivare le notifiche su questo dispositivo.')
+    }
+  }
 
   const handleSubmit = async () => {
     if (!text.trim() || !user) return
@@ -133,6 +157,25 @@ export default function OperaioPage() {
           <LogOut className="h-4 w-4" />
         </button>
       </header>
+
+      {showNotifBanner && (
+        <div className="bg-primary/10 border-b border-primary/30 px-4 py-3 flex items-center gap-3 flex-shrink-0">
+          <Bell className="h-4 w-4 text-primary flex-shrink-0" />
+          <p className="text-xs text-foreground/90 flex-1">
+            Vuoi ricevere una notifica sul telefono quando il magazzino aggiorna una tua richiesta?
+          </p>
+          <button
+            onClick={handleAttivaNotifiche}
+            disabled={activatingNotif}
+            className="bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl flex-shrink-0 disabled:opacity-50"
+          >
+            {activatingNotif ? '...' : 'Attiva'}
+          </button>
+          <button onClick={() => setShowNotifBanner(false)} className="text-muted-foreground hover:text-foreground flex-shrink-0">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Area chat */}
       <div
