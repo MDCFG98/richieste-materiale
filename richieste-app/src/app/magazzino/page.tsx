@@ -87,10 +87,25 @@ export default function MagazzinoPage() {
     })
   }, [])
 
-  const updateStatus = async (id: string, status: Status) => {
-    setUpdatingId(id)
-    await updateDoc(doc(db, 'richieste', id), { status, updatedAt: new Date() })
-    setUpdatingId(null)
+  const updateStatus = async (r: Richiesta, status: Status) => {
+    setUpdatingId(r.id)
+    try {
+      await updateDoc(doc(db, 'richieste', r.id), { status, updatedAt: new Date() })
+      // Notifica l'operaio, se ha attivato le notifiche sul suo dispositivo.
+      // Se non le ha attivate, l'API risponde semplicemente "non inviata",
+      // niente di cui preoccuparsi.
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: r.authorId,
+          title: 'Richieste Materiale',
+          body: `La tua richiesta è stata aggiornata: ${STATUS_CONFIG[status].label}`,
+        }),
+      }).catch(e => console.error('Notifica non inviata:', e))
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   const handleDelete = async (r: Richiesta) => {
@@ -405,7 +420,7 @@ export default function MagazzinoPage() {
                   {ACTION_BUTTONS.map(btn => (
                     <button
                       key={btn.status}
-                      onClick={() => updateStatus(r.id, btn.status)}
+                      onClick={() => updateStatus(r, btn.status)}
                       disabled={isUpdating || r.status === btn.status}
                       className={`py-2.5 px-2 rounded-xl text-[9px] font-black uppercase tracking-wide transition-all disabled:cursor-default leading-tight ${
                         r.status === btn.status
